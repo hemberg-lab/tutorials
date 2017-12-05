@@ -1,0 +1,62 @@
+---
+title: "Example of QC"
+author: "Vladimir Kiselev"
+date: "`r Sys.Date()`"
+output:
+    BiocStyle::html_document:
+        toc: true
+vignette: >
+  %\VignetteIndexEntry{SC3 package manual}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+# `SingleCellExperiment` object
+
+```{r message=FALSE, warning=FALSE}
+library(SingleCellExperiment)
+d <- read.table("~/Downloads/primedMed.txt", header = TRUE, stringsAsFactors = FALSE)
+# annotate feature names
+ann <- data.frame(feature_symbol = d[,1])
+sce <- SingleCellExperiment(assays = list(counts = as.matrix(d[,-1])), rowData = ann)
+# define ERCCs
+isSpike(sce, "ERCC") <- grepl("ERCC", ann$feature_symbol)
+# remove features with duplicated names
+sce <- sce[!duplicated(rowData(sce)$feature_symbol), ]
+```
+
+# Quality Control (QC)
+
+```{r message=FALSE, warning=FALSE}
+library(scater)
+sce <- calculateQCMetrics(
+    sce,
+    feature_controls = list(
+        ERCC = isSpike(sce, "ERCC")
+    )
+)
+
+# distribution of total counts
+hist(log10(sce$total_counts + 1), breaks = 100)
+
+# filter very lowly expressed cells
+sce_filtered <- sce[,sce$total_counts > 10]
+logcounts(sce_filtered) <- log2(calculateCPM(sce_filtered, use.size.factors = FALSE) + 1)
+```
+
+# Run `SC3`
+
+```{r message=FALSE, warning=FALSE}
+# run SC3
+library(SC3)
+sce_filtered <- sc3_prepare(sce_filtered, ks = 2:4)
+sce_filtered <- sc3_estimate_k(sce_filtered)
+metadata(sce_filtered)$sc3$k_estimation
+```
+
+# sessionInfo()
+
+```{r echo=FALSE}
+sessionInfo()
+```
+
